@@ -12,18 +12,20 @@ function App() {
   const [msg, setMsg] = useState(''); // 유저가 보낼 메세지
   const [msgList, setMsgList] = useState([]); // 서버로부터 받은 메세지들
 
+  const [privateTarget, setPrivateTarget] = useState(''); // 1:1 대화 상대 아이디
+
   /* ================ 1. useEffect : 최초 렌더링 시 발생하는 이벤트 (서버로부터 리시브) ================ */
   // 이벤트 리스너 (from server) : sMessage - 서버로부터 받은 메세지
   useEffect(() => {
     if (!webSocket) return;
 
     function sMessageCallback(msg) {
-      const { data, id } = msg;
+      const { data, id, target } = msg; // target : 1:1 채팅 여부
       setMsgList((prev) => [
         ...prev,
         {
           msg: data,
-          type: 'other', // sMessage: 다른 사람이 보낸 메세지 (broadcast)
+          type: target ? 'private' : 'other', // target에 따른 스타일 적용
           id,
         },
       ]);
@@ -85,6 +87,7 @@ function App() {
     const sendData = {
       data: msg,
       id: userId,
+      target: privateTarget, // 1:1 채팅 상대방 아이디도 같이 전송
     };
     webSocket.emit('message', sendData); // 서버에 메세지(아이디, 메세지) 전송
     setMsgList((prev) => [...prev, { msg, type: 'me', id: userId }]); // 내가 보낸 메세지
@@ -94,6 +97,12 @@ function App() {
   // 메세지 input 태그 핸들러
   const onChangeMsgHandler = (e) => {
     setMsg(e.target.value);
+  };
+
+  // 아이디 클릭 시 privateTarget 상태변수를 바꾸는 핸들러
+  const onSetPrivateTarget = (e) => {
+    const { id } = e.target.dataset;
+    setPrivateTarget((prev) => (prev === id ? '' : id)); // toggle 방식
   };
 
   return (
@@ -121,10 +130,26 @@ function App() {
                     <div className="line" />
                   </li>
                 ) : (
-                  // 일반 메세지, className : me or other
-                  <li className={v.type} key={`${i}_li`}>
-                    <div className="userId">{v.id}</div>
-                    <div className={v.type}>{v.msg}</div>
+                  // 일반 메세지, className : me or other / private
+                  <li
+                    className={v.type}
+                    key={`${i}_li`}
+                    name={v.id}
+                    data-id={v.id}
+                    onClick={onSetPrivateTarget}
+                  >
+                    <div
+                      className={
+                        v.id === privateTarget ? 'private-user' : 'userId'
+                      }
+                      data-id={v.id}
+                      name={v.id}
+                    >
+                      {v.id}
+                    </div>
+                    <div className={v.type} data-id={v.id} name={v.id}>
+                      {v.msg}
+                    </div>
                   </li>
                 ),
               )}
@@ -132,6 +157,10 @@ function App() {
             </ul>
             {/* 채팅 입력창 */}
             <form className="send-form" onSubmit={onSendSubmitHandler}>
+              {/* privateTarget이 존재할 때, 이름을 표시 */}
+              {privateTarget && (
+                <div className="private-target">{privateTarget}</div>
+              )}
               <input
                 placeholder="Enter your message"
                 onChange={onChangeMsgHandler}
@@ -141,6 +170,7 @@ function App() {
             </form>
           </div>
         ) : (
+          // 로그인 이전 아이디 입력창
           <div className="login-box">
             <div className="login-title">
               <img src={logo} width="40px" height="40px" alt="logo" />
